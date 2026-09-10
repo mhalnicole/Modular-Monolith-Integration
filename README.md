@@ -254,34 +254,24 @@ The Preview panel on the right shows the full order history returned by `GET /ap
 ## 📝 Architectural Reflection (300–500 Words)
 
 ### 1. In-Process vs. Microservices over a Network
-Integrating the `Order` and `Inventory` modules **in-process** within a modular monolith provides substantial architectural benefits "for free":
-- **Zero Network Overhead & Sub-Millisecond Latency:** In-process communication consists of standard Java method invocations in JVM memory, avoiding TCP handshakes, DNS resolution, and JSON serialization/deserialization.
-- **ACID Transaction Guarantees:** Both modules can participate in a single local database transaction managed by Spring's `@Transactional`. If an order fails to record, stock rollback is guaranteed atomically by the database without data inconsistency.
-- **Compile-Time Type Safety:** Data transfer contracts are verified at compile time by the Java compiler.
 
-If split into separate microservices over a network, several complex distributed systems concerns must be added back:
-- **Resilience & Fault Tolerance:** Network calls can fail partially or timeout, requiring circuit breakers (e.g., Resilience4j), retries with exponential backoff, and timeouts.
-- **Distributed Transactions & Eventual Consistency:** Without shared database transactions, systems must implement the **Saga Pattern** (orchestration or choreography) with compensating transactions to undo inventory reservations if order creation fails.
-- **Idempotency & Distributed Tracing:** Network retries risk duplicate reservations, necessitating idempotency keys and distributed tracing tools (e.g., OpenTelemetry/Zipkin).
+In this project, the Order and Inventory modules communicate directly in-process, meaning they call each other through plain Java method calls inside the same JVM without any network involved. This is actually a big advantage because it removes a lot of overhead. Since there's no HTTP request happening between the two modules, there's no delay from TCP connections, no need to serialize and deserialize JSON, and no risk of a network timeout. Another benefit is that both modules can share the same database transaction managed by Spring's `@Transactional`, so if something goes wrong during an order, the stock change can be rolled back automatically without any inconsistency.
+
+If we were to split these into separate microservices communicating over a network, things would get a lot more complicated. We'd have to handle network failures, timeouts, and partial responses. We'd also lose the ability to use a single shared transaction, so we'd need to implement something like the Saga Pattern where each service has its own compensating action in case of failure. On top of that, retrying failed network requests could accidentally duplicate reservations, so we'd need idempotency keys and probably distributed tracing tools just to debug what's happening. Basically, what was one simple method call becomes a much bigger engineering problem.
 
 ---
 
 ### 2. Importance of Package-Private Visibility on `InventoryServiceImpl`
-Declaring `InventoryServiceImpl` as **package-private** (`class InventoryServiceImpl implements InventoryService` without the `public` access modifier) is a cornerstone of modular monolith architecture:
-- **Enforced Boundary at Compile Time:** In Java, package-private classes are invisible to other packages. The `OrderService` (in `edu.cit.patonog.shop`) is physically prevented from importing or directly instantiating `InventoryServiceImpl`. It can only depend on the public contract (`InventoryService`).
-- **Decoupling & Encapsulation:** It guarantees that internal implementation details—such as `InventoryRepository`, database queries, or private helper methods—remain strictly encapsulated within the `inventory` package.
-- **What Breaks if Public?** If `InventoryServiceImpl` were made `public`, developers in the `shop` module could accidentally bypass the interface, inject the concrete class, or instantiate it directly. Over time, this leads to tight architectural coupling, circular dependencies, and a "spaghetti monolith" where modules cannot be independently refactored, tested, or extracted.
+
+Making `InventoryServiceImpl` package-private, meaning it has no `public` modifier, is what actually enforces the boundary between the two modules. In Java, a class without the `public` keyword can only be seen and used by other classes within the same package. So even though `OrderService` is in `edu.cit.patonog.shop`, it physically cannot import or directly use `InventoryServiceImpl` because it lives in `edu.cit.patonog.inventory`. The only thing it can access is the public `InventoryService` interface, which is exactly what we want.
+
+This matters because if `InventoryServiceImpl` were made public, any developer could bypass the interface and inject the concrete class directly. Over time that leads to tight coupling where the shop module starts depending on internal implementation details of the inventory module. Once that happens, it becomes really hard to change one module without breaking the other, which defeats the whole purpose of having a modular architecture.
 
 ---
 
 ### 3. Microservice Extraction Strategy
-**When to extract Inventory into its own microservice:**
-- **Divergent Scaling Requirements:** When the inventory lookup/stock-checking traffic grows exponentially higher than order creation (e.g., millions of browsing users vs. thousands of purchasers), requiring independent horizontal auto-scaling.
-- **Team Ownership & Organizational Boundaries:** When a dedicated inventory/warehouse team needs autonomous deployment pipelines and release cycles without risking the shop codebase.
-- **Technology Specialization:** If the inventory domain requires specialized caching (e.g., high-throughput Redis clusters) or event streaming (e.g., Kafka).
 
-**What would need to change in the codebase:**
-1. **Interface Remains Untouched:** The `InventoryService` interface signature (`getItem`, `reserve`) remains identical, ensuring zero changes to `OrderService` business logic.
-2. **Swap Implementation:** Replace the local `InventoryServiceImpl` with an HTTP/REST or gRPC client (e.g., Spring `RestClient`, `WebClient`, or Feign client) in the shop module that calls `https://inventory-service/api/...`.
-3. **Database Segregation:** Separate the shared database so the Inventory service owns the `inventory` table exclusively, while the Shop service owns the `orders` table.
-4. **Asynchronous / Saga Integration:** Transition order fulfillment to an event-driven model (e.g., publishing `OrderPlacedEvent` and consuming `InventoryReservedEvent`).
+If the Inventory module ever needed to become its own microservice, there are a few scenarios where that would make sense. One is when the inventory traffic grows much faster than order traffic, for example if millions of users are browsing products but only a fraction of them are actually placing orders. In that case, you'd want to scale the inventory lookup independently. Another reason would be if a separate team was responsible for inventory and needed their own deployment pipeline without touching the shop codebase.
+
+As for what would change in the code, the good news is that the `InventoryService` interface would stay exactly the same. The only thing that needs to change is the implementation behind it. Instead of calling local methods, `InventoryServiceImpl` would be replaced with an HTTP client like Spring's `RestClient` or a Feign client that makes network calls to the external inventory service. The database would also need to be separated so each service owns its own tables. Eventually, the order flow would probably move toward an event-driven approach where placing an order publishes an event and the inventory service responds asynchronously.
+
