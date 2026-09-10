@@ -6,7 +6,7 @@
 
 ---
 
-## 📌 Overview
+## Overview
 
 This project demonstrates three distinct architectural integration styles within a modern full-stack web application:
 
@@ -46,7 +46,7 @@ This project demonstrates three distinct architectural integration styles within
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 monolith/
@@ -89,7 +89,7 @@ monolith/
 
 ---
 
-## 🗄️ Supabase Setup Guide
+## Supabase Setup Guide
 
 ### 1. Create a Supabase Project
 1. Log in to [Supabase](https://supabase.com) and click **New Project**.
@@ -134,7 +134,7 @@ In Supabase, navigate to **Project Settings** &rarr; **Database**:
 
 ---
 
-## ⚙️ Environment Variables Setup
+## Environment Variables Setup
 
 Per security requirements, credentials are **never committed to Git**. Configure them via environment variables before running the backend:
 
@@ -156,7 +156,7 @@ export SPRING_DATASOURCE_PASSWORD="<your-database-password>"
 
 ---
 
-## 🚀 Running the Application
+## Running the Application
 
 ### 1. Run Spring Boot Backend
 From the project root:
@@ -180,7 +180,7 @@ The frontend is accessible at `http://localhost:5173`.
 
 ---
 
-## 🧪 Testing & API Documentation
+## Testing & API Documentation
 
 ### REST Endpoint: `POST /api/orders`
 
@@ -236,7 +236,7 @@ The frontend is accessible at `http://localhost:5173`.
 
 ---
 
-## 📸 Network Tab Evidence
+## Network Tab Evidence
 
 The screenshot below captures the browser DevTools Network tab showing both CONFIRMED and REJECTED HTTP responses from `POST /api/orders`.
 
@@ -251,7 +251,7 @@ The Preview panel on the right shows the full order history returned by `GET /ap
 
 ---
 
-## 📝 Architectural Reflection (300–500 Words)
+## Reflection
 
 ### 1. In-Process vs. Microservices over a Network
 
