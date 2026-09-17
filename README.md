@@ -15,50 +15,6 @@ Lab 2 extends our modular monolith from Lab 1 by introducing:
 4. **Low-Stock Auto-Reorder Alerts:** Automatically triggers a `LowStockEvent` whenever an item's stock drops to 5 or below after reservation.
 5. **Live Dashboard & Cart:** React frontend featuring a multi-item cart, live inventory dashboard with low-stock badges, order history with cancel buttons, and an event activity feed.
 
-```
-+-----------------------------------------------------------------------------------+
-|                                  React Frontend                                   |
-|                              (http://localhost:5173)                              |
-+-----------------------------------------+-----------------------------------------+
-                                          |
-                                          | HTTP REST (CORS enabled)
-                                          v
-+-----------------------------------------------------------------------------------+
-|                      Spring Boot Monolith (In-Process JVM)                        |
-|                                                                                   |
-|   +--------------------------+           +------------------------------------+   |
-|   |   edu.cit.patonog.shop   | --------> |     edu.cit.patonog.inventory      |   |
-|   |      (Order Module)      | In-Process|         (Inventory Module)         |   |
-|   |                          |           |                                    |   |
-|   |   OrderService           |           |   InventoryService (Public)        |   |
-|   |   OrderRepository        |           |   InventoryServiceImpl (Private)   |   |
-|   |   OrderController        |           |   InventoryRepository              |   |
-|   +------------+-------------+           +-----------------+------------------+   |
-|                |                                           |                      |
-|                | ApplicationEventPublisher                 | EventPublisher       |
-|                v                                           v                      |
-|      [OrderPlacedEvent / OrderRejectedEvent]        [LowStockEvent]               |
-|                \                                           /                      |
-|                 +-------------------+---------------------+                       |
-|                                     | In-Process Event Bus                        |
-|                                     v                                             |
-|                     +-------------------------------+                             |
-|                     | edu.cit.patonog.notification  |                             |
-|                     |     (Notification Module)     |                             |
-|                     |                               |                             |
-|                     |  NotificationEventListener    |                             |
-|                     |  NotificationRepository       |                             |
-|                     |  NotificationController       |                             |
-|                     +---------------+---------------+                             |
-+-------------------------------------|---------------------------------------------+
-                                      | Spring Data JPA (Shared Supabase Database)
-                                      v
-           +------------------------------------------------------+
-           |                 Supabase PostgreSQL                  |
-           |   inventory | orders | order_items | notifications   |
-           +------------------------------------------------------+
-```
-
 ---
 
 ## Project Structure
