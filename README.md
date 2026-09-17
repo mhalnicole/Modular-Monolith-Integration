@@ -216,25 +216,29 @@ If `@Async` were added to `@EventListener`:
 - **Action:** Add `P100` (qty 2) and `P200` (qty 1) to cart, click Submit Order.
 - **Request:** `POST /api/orders` with `{ "items": [{ "productId": "P100", "quantity": 2 }, { "productId": "P200", "quantity": 1 }] }`
 - **Response:** HTTP 200 with `"status": "CONFIRMED"`, both line items marked `"outcome": "RESERVED"`.
-- *(Insert screenshot here: `evidence/scenario1_confirmed_multi_item.png`)*
+
+![Scenario 1 - Confirmed Multi-Item Order](evidence/confirmed_multi_item.png)
 
 ### Scenario 2: Multi-Item Order One Item Fails (`REJECTED` with All-or-Nothing Rollback)
 - **Action:** Add `P100` (qty 1) and `P300` (qty 1, 0 stock) to cart, click Submit Order.
 - **Request:** `POST /api/orders` with `{ "items": [{ "productId": "P100", "quantity": 1 }, { "productId": "P300", "quantity": 1 }] }`
 - **Response:** HTTP 200 with `"status": "REJECTED"`, `"reason": "Insufficient stock for USB-C Hub (P300)..."`. P100 stock is completely untouched (0 units reserved).
-- *(Insert screenshot here: `evidence/scenario2_rejected_all_or_nothing.png`)*
+
+![Scenario 2 - Rejected All-or-Nothing](evidence/rejected_all_or_nothing.png)
 
 ### Scenario 3: Order Cancellation with Restock
 - **Action:** Click "Cancel Order" on a confirmed order in the order history.
 - **Request:** `POST /api/orders/{orderId}/cancel`
 - **Response:** HTTP 200 with `"status": "CANCELLED"`. Immediately followed by `GET /api/inventory` showing stock restored to its previous count.
-- *(Insert screenshot here: `evidence/scenario3_order_cancellation_restock.png`)*
+
+![Scenario 3 - Order Cancellation and Restock](evidence/order_cancellation_restock.png)
 
 ### Scenario 4: Notification Feed Showing Confirmed, Rejected, and Low-Stock Alert
 - **Action:** View the activity feed after placing orders.
 - **Request:** `GET /api/notifications`
 - **Response:** HTTP 200 returning list containing order confirmation entries, order rejection entries, and `"Reorder needed: ... stock is down to X units"` entries.
-- *(Insert screenshot here: `evidence/scenario4_notification_feed.png`)*
+
+![Scenario 4 - Notification Feed](evidence/notification_feed.png)
 
 ---
 
@@ -242,22 +246,25 @@ If `@Async` were added to `@EventListener`:
 
 ### 1. Multi-Item Orders & Transactional Atomicity (In-Process vs. Network)
 
-In our modular monolith, multi-item orders touch `InventoryService` multiple times within a single request, but atomicity is guaranteed through a two-step approach and Spring's `@Transactional` boundary. First, `OrderService` performs a complete validation pass over all requested items before making any state changes. If even a single item lacks sufficient stock, the process stops immediately and nothing is reserved. Second, because both the `shop` and `inventory` modules run within the same JVM and share the same database connection, Spring manages the entire operation under one local ACID transaction. If an unexpected error or runtime exception occurs during reservation, the database automatically rolls back all changes, ensuring no partial fulfillment ever occurs.
+In our modular monolith, handling multi-item orders was simpler than I expected because everything runs inside one JVM. The way we implemented it is with a two-pass approach. The first pass goes through all the requested items and checks if each product has enough stock. If even one item fails, the whole order gets rejected right away and nothing gets reserved. Only when all items pass does the second pass actually call `InventoryService.reserve()` for each one. Since both the `shop` and `inventory` modules share the same database connection and run under Spring's `@Transactional`, any unexpected failure during reservation will automatically roll back the entire operation. This makes it impossible for a partial order to ever end up saved in the database.
 
-If `Order` and `Inventory` were split across a network into separate microservices, we would lose shared ACID transactions completely. Each call to reserve stock would be an independent HTTP request to a separate database. To handle this, we would need to implement the Saga Pattern, either through orchestration or choreography. In an orchestration saga, an Order Saga Coordinator would send reserve requests to the Inventory service. If item one succeeded but item two failed due to insufficient stock, the coordinator would have to execute compensating transactions—such as sending explicit restock or release requests for the items that were previously reserved—to return the system to a consistent state.
+If we were to split `Order` and `Inventory` into separate microservices, we would completely lose the ability to do this with a single transaction. Each `reserve()` call would be a separate HTTP request hitting a different database. To deal with that, we would need to use the Saga Pattern. For example, in an orchestration-based saga, a coordinator service would send reserve requests one by one. If the second item fails after the first one already succeeded, the coordinator would need to send a compensating request to undo the first reservation and put the stock back. It adds a lot of complexity compared to what we have now.
 
 ---
 
 ### 2. Event-Driven Decoupling: In-Process vs. Microservices
 
-Publishing an event via Spring's `ApplicationEventPublisher` instead of calling the `Notification` module directly completely breaks the compile-time coupling between `OrderService` and `Notification`. In our code, `OrderService` only knows about its own domain events (`OrderPlacedEvent` and `OrderRejectedEvent`). It has zero imports from `edu.cit.patonog.notification`, and the `Notification` module only knows about the event structures, never referencing `OrderService` or `InventoryService`. This means we can modify, refactor, or even completely disable the notification logic without touching a single line of order processing code.
+One of the things I found really interesting in this lab was how publishing domain events through Spring's `ApplicationEventPublisher` completely removes the need for `OrderService` to know anything about the `Notification` module. In the code, `OrderService` only imports the event classes like `OrderPlacedEvent` and `OrderRejectedEvent`. It has no idea that a `NotificationEventListener` even exists. On the other side, the `Notification` module only depends on those same event classes and never calls `OrderService` or `InventoryService` directly. This means if we wanted to change how notifications work, or even turn them off entirely, we would not need to touch any order processing code.
 
-If `Notification` became a separate microservice, Spring's in-process event bus would no longer work because the services would run in different JVM processes. We would need to introduce an external message broker like RabbitMQ, Apache Kafka, or AWS SQS. `OrderService` would publish events as JSON messages to an exchange or topic, and the Notification microservice would subscribe to that queue. To guarantee reliable delivery without losing messages during network hiccups or service restarts, we would also need the Transactional Outbox Pattern to save events into the database before publishing, alongside at-least-once delivery semantics and idempotent event consumers on the notification side.
+If the `Notification` module were extracted into a separate microservice, the in-process event bus would stop working because the two services would be running in completely different processes. We would have to bring in an external message broker like RabbitMQ or Apache Kafka. The `OrderService` would publish events as JSON messages to a topic, and the Notification service would consume from that topic and save the records to its own database. We would also need to think about things like the Transactional Outbox Pattern to make sure events do not get lost if the broker is temporarily unavailable, and idempotent consumers on the notification side to avoid saving duplicate notifications if a message gets delivered more than once.
 
 ---
 
 ### 3. Microservice Extraction Decision
 
-If forced to extract exactly one module into its own microservice first, I would choose the **Notification** module. The reason is that Notification is already completely decoupled from the core business domain. It is an asynchronous consumer that only reads domain events and writes to its own `notifications` table; neither `OrderService` nor `InventoryService` ever needs a response back from it. Extracting `Inventory` first would be much riskier because Order and Inventory have tight transactional dependencies that would immediately force us into complex distributed sagas and two-phase commits.
+If I had to pick one module to extract into its own microservice first, I would go with the **Notification** module. The main reason is that it is already the most decoupled part of the system. It does not call any other service, it only listens for events and writes to its own table, and nothing in the application ever waits for a response from it. Extracting it would not break any existing business logic.
 
-To extract Notification into a standalone service, the changes to our codebase would be minimal. First, we would move `Notification`, `NotificationRepository`, `NotificationEventListener`, and `NotificationController` into their own separate Spring Boot project with their own database. In the monolith, we would replace the local `@EventListener` with a message publisher that sends `OrderPlacedEvent`, `OrderRejectedEvent`, and `LowStockEvent` to a message broker (like RabbitMQ or Kafka). The new Notification service would listen to that broker topic, save the incoming messages to its dedicated database, and serve the `GET /api/notifications` endpoint independently.
+Extracting the `Inventory` module first would be a much riskier move. The `Order` and `Inventory` modules have a tight dependency because reserving stock needs to happen inside the same transaction as creating an order. Pulling them apart would immediately require implementing a distributed saga with compensating transactions, which is significantly harder to get right.
+
+To actually extract the `Notification` module, the steps would be fairly straightforward. We would move `Notification`, `NotificationRepository`, `NotificationEventListener`, and `NotificationController` into a brand new Spring Boot project with its own database. In the monolith, instead of publishing in-process events, we would send messages to a broker like RabbitMQ or Kafka. The new Notification service would then subscribe to those messages, persist them, and expose the `GET /api/notifications` endpoint on its own.
+
