@@ -10,36 +10,6 @@
 
 This project demonstrates three distinct architectural integration styles within a modern full-stack web application:
 
-```
-+-------------------------------------------------------------------------+
-|                              React Frontend                             |
-|                        (http://localhost:5173)                          |
-+------------------------------------+------------------------------------+
-                                     |
-                                     | HTTP REST (POST /api/orders, CORS)
-                                     v
-+-------------------------------------------------------------------------+
-|                  Spring Boot Application (In-Process JVM)               |
-|                                                                         |
-|   +--------------------------+       +------------------------------+   |
-|   |   edu.cit.patonog.shop   | ----> |  edu.cit.patonog.inventory   |   |
-|   |      (Order Module)      |       |      (Inventory Module)      |   |
-|   |                          |       |                              |   |
-|   |   OrderService           |       |   InventoryService (Public)  |   |
-|   |   OrderRepository        |       |   InventoryServiceImpl       |   |
-|   |   OrderController        |       |   (Package-Private)          |   |
-|   +------------+-------------+       +--------------+---------------+   |
-+----------------|------------------------------------|-------------------+
-                 | Spring Data JPA                    | Spring Data JPA
-                 +------------------+  +--------------+
-                                    |  |
-                                    v  v
-                       +-----------------------------+
-                       |     Supabase PostgreSQL     |
-                       |    (inventory & orders)     |
-                       +-----------------------------+
-```
-
 1. **Module-to-Module In-Process Integration**: The Order module (`edu.cit.patonog.shop`) calls the Inventory module (`edu.cit.patonog.inventory`) directly in JVM memory via the public `InventoryService` interface, with implementation details hidden via package-private visibility.
 2. **Service-to-Database Integration**: Spring Data JPA communicates with a shared Supabase PostgreSQL database using secure environment variables.
 3. **External Client Integration**: A React (Vite) frontend communicates with the backend via HTTP REST (`POST /api/orders`) with CORS enabled.
