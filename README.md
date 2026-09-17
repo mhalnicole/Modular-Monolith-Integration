@@ -1,7 +1,6 @@
 # Modular Monolith Integration with React Frontend & Supabase
 
 **Course/Lab:** Modular Monolith Integration with a React Frontend  
-**Stack:** Java Spring Boot (v4 / Java 17+) + React (Vite) + Supabase (PostgreSQL)  
 **Package:** `edu.cit.patonog`
 
 ---
