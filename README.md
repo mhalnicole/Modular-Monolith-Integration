@@ -6,7 +6,7 @@
 
 ---
 
-## 📌 Overview & Architecture
+## Overview & Architecture
 
 Lab 2 extends our modular monolith from Lab 1 by introducing:
 1. **Multi-Item Orders with Transactional Rollback:** All items are validated before reserving. If any item lacks stock, zero items are reserved (all-or-nothing).
@@ -61,7 +61,7 @@ Lab 2 extends our modular monolith from Lab 1 by introducing:
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 monolith/
@@ -115,7 +115,7 @@ monolith/
 
 ---
 
-## 🗄️ Supabase Setup Guide
+## Supabase Setup Guide
 
 ### 1. Database Schema Execution
 Open the **SQL Editor** in your Supabase dashboard and run the entire script [`supabase_schema.sql`](supabase_schema.sql):
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 ---
 
-## ⚙️ Environment Variables Setup
+## Environment Variables Setup
 
 Configure your Supabase database credentials in PowerShell before launching:
 
@@ -174,7 +174,7 @@ $env:SPRING_DATASOURCE_PASSWORD="<your-database-password>"
 
 ---
 
-## 🚀 Running the Application
+## Running the Application
 
 ### 1. Spring Boot Backend
 ```powershell
@@ -195,7 +195,7 @@ Open `http://localhost:5173` in your browser.
 
 ---
 
-## ⚡ Synchronous vs. Asynchronous Event Listeners (`@Async`)
+## Synchronous vs. Asynchronous Event Listeners (`@Async`)
 
 In our implementation, the `NotificationEventListener` runs **synchronously** (Spring's default `@EventListener`).
 
@@ -210,7 +210,7 @@ If `@Async` were added to `@EventListener`:
 
 ---
 
-## 📸 Network Tab Evidence (Lab 2 Scenarios)
+## Network Tab Evidence
 
 ### Scenario 1: Multi-Item Order All Succeed (`CONFIRMED`)
 - **Action:** Add `P100` (qty 2) and `P200` (qty 1) to cart, click Submit Order.
@@ -242,7 +242,7 @@ If `@Async` were added to `@EventListener`:
 
 ---
 
-## 📝 Architectural Reflection (300–500 Words)
+## Reflection
 
 ### 1. Multi-Item Orders & Transactional Atomicity (In-Process vs. Network)
 
