@@ -14,7 +14,6 @@ Lab 2 extends our modular monolith from Lab 1 by introducing:
 3. **In-Monolith Domain Events & Notification Module:** `OrderService` and `InventoryService` publish domain events (`OrderPlacedEvent`, `OrderRejectedEvent`, `LowStockEvent`) through Spring's `ApplicationEventPublisher`. The new `Notification` module listens to these events via `@EventListener` with zero direct coupling to the other services.
 4. **Low-Stock Auto-Reorder Alerts:** Automatically triggers a `LowStockEvent` whenever an item's stock drops to 5 or below after reservation.
 5. **Live Dashboard & Cart:** React frontend featuring a multi-item cart, live inventory dashboard with low-stock badges, order history with cancel buttons, and an event activity feed.
-
 ---
 
 ## Project Structure
