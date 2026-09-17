@@ -1,23 +1,27 @@
 package edu.cit.patonog.inventory;
 
+import edu.cit.patonog.events.LowStockEvent;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Implementation of InventoryService.
- * Explicitly package-private (no 'public' modifier) to enforce the modular monolith boundary.
- * The Shop/Order module is only permitted to reference the public InventoryService interface.
- */
 @Service
 class InventoryServiceImpl implements InventoryService {
 
     private final InventoryRepository inventoryRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final int lowStockThreshold;
 
-    InventoryServiceImpl(InventoryRepository inventoryRepository) {
+    InventoryServiceImpl(InventoryRepository inventoryRepository,
+                         ApplicationEventPublisher eventPublisher,
+                         @Value("${inventory.low-stock-threshold:5}") int lowStockThreshold) {
         this.inventoryRepository = inventoryRepository;
+        this.eventPublisher = eventPublisher;
+        this.lowStockThreshold = lowStockThreshold;
     }
 
     @Override
@@ -46,9 +50,30 @@ class InventoryServiceImpl implements InventoryService {
             return false;
         }
 
-        item.setStock(item.getStock() - quantity);
+        int updatedStock = item.getStock() - quantity;
+        item.setStock(updatedStock);
         inventoryRepository.save(item);
+
+        if (updatedStock <= lowStockThreshold) {
+            eventPublisher.publishEvent(new LowStockEvent(item.getProductId(), item.getName(), updatedStock));
+        }
+
         return true;
+    }
+
+    @Override
+    @Transactional
+    public void restock(String productId, int quantity) {
+        if (productId == null || quantity <= 0) {
+            return;
+        }
+
+        Optional<InventoryItem> optionalItem = inventoryRepository.findById(productId.trim());
+        if (optionalItem.isPresent()) {
+            InventoryItem item = optionalItem.get();
+            item.setStock(item.getStock() + quantity);
+            inventoryRepository.save(item);
+        }
     }
 
     @Override

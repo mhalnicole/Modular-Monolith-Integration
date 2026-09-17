@@ -1,17 +1,14 @@
--- =============================================================================
--- Supabase PostgreSQL Schema & Seed Script
--- Lab: Modular Monolith Integration with a React Frontend
--- Student Package: edu.cit.patonog
--- =============================================================================
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS order_items CASCADE;
+DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS inventory CASCADE;
 
--- 1. Create Inventory Table
 CREATE TABLE IF NOT EXISTS inventory (
     product_id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     stock INT NOT NULL CHECK (stock >= 0)
 );
 
--- 2. Seed Initial Inventory Data
 INSERT INTO inventory (product_id, name, stock) VALUES
     ('P100', 'Wireless Mouse', 25),
     ('P200', 'Mechanical Keyboard', 10),
@@ -19,16 +16,27 @@ INSERT INTO inventory (product_id, name, stock) VALUES
 ON CONFLICT (product_id) DO UPDATE 
 SET name = EXCLUDED.name, stock = EXCLUDED.stock;
 
--- 3. Create Orders Table
 CREATE TABLE IF NOT EXISTS orders (
     order_id VARCHAR(100) PRIMARY KEY,
-    product_id VARCHAR(50) NOT NULL,
-    quantity INT NOT NULL,
     status VARCHAR(50) NOT NULL,
     reason VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. Verify Seed Data
+CREATE TABLE IF NOT EXISTS order_items (
+    id BIGSERIAL PRIMARY KEY,
+    order_id VARCHAR(100) NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
+    product_id VARCHAR(50) NOT NULL REFERENCES inventory(product_id),
+    quantity INT NOT NULL CHECK (quantity > 0)
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    notification_id VARCHAR(100) PRIMARY KEY,
+    message VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 SELECT * FROM inventory;
 SELECT * FROM orders;
+SELECT * FROM order_items;
+SELECT * FROM notifications;

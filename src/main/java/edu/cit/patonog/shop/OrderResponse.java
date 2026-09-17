@@ -2,20 +2,34 @@ package edu.cit.patonog.shop;
 
 import edu.cit.patonog.inventory.InventoryItem;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class OrderResponse {
 
     private String orderId;
     private String status;
     private String reason;
-    private InventoryItem inventory;
+    private List<OrderItemDto> items;
+    private Object inventory;
 
     public OrderResponse() {
+        this.items = new ArrayList<>();
     }
 
-    public OrderResponse(String orderId, String status, String reason, InventoryItem inventory) {
+    public OrderResponse(String orderId, String status, String reason, List<OrderItemDto> items, Object inventory) {
         this.orderId = orderId;
         this.status = status;
         this.reason = reason;
+        this.items = items != null ? items : new ArrayList<>();
+        this.inventory = inventory;
+    }
+
+    public OrderResponse(String orderId, String status, String reason, Object inventory) {
+        this.orderId = orderId;
+        this.status = status;
+        this.reason = reason;
+        this.items = new ArrayList<>();
         this.inventory = inventory;
     }
 
@@ -43,11 +57,19 @@ public class OrderResponse {
         this.reason = reason;
     }
 
-    public InventoryItem getInventory() {
+    public List<OrderItemDto> getItems() {
+        return items;
+    }
+
+    public void setItems(List<OrderItemDto> items) {
+        this.items = items;
+    }
+
+    public Object getInventory() {
         return inventory;
     }
 
-    public void setInventory(InventoryItem inventory) {
+    public void setInventory(Object inventory) {
         this.inventory = inventory;
     }
 }
