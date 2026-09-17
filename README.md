@@ -1,7 +1,6 @@
 # Modular Monolith Integration — Lab 2: Extending the Modular Monolith
 
 **Course/Lab:** Lab 2: Extending the Modular Monolith  
-**Stack:** Java Spring Boot (v4 / Java 17+) + React (Vite) + Supabase (PostgreSQL)  
 **Package:** `edu.cit.patonog` (`.shop`, `.inventory`, `.notification`, `.events`)
 
 ---
