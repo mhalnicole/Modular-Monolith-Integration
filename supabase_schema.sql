@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS supplier_orders CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
@@ -36,7 +37,21 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS supplier_orders (
+    id BIGSERIAL PRIMARY KEY,
+    product_id VARCHAR(50) NOT NULL REFERENCES inventory(product_id),
+    buyer_ref VARCHAR(100) NOT NULL UNIQUE,
+    request_id VARCHAR(100) NOT NULL,
+    po_number VARCHAR(100),
+    cases INT NOT NULL,
+    units INT NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 SELECT * FROM inventory;
 SELECT * FROM orders;
 SELECT * FROM order_items;
 SELECT * FROM notifications;
+SELECT * FROM supplier_orders;

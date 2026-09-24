@@ -1,8 +1,10 @@
 package edu.cit.patonog.inventory;
 
 import edu.cit.patonog.events.LowStockEvent;
+import edu.cit.patonog.events.SupplierOrderDeliveredEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -80,5 +82,13 @@ class InventoryServiceImpl implements InventoryService {
     @Transactional(readOnly = true)
     public List<InventoryItem> getAllItems() {
         return inventoryRepository.findAllByOrderByProductIdAsc();
+    }
+
+    @EventListener
+    @Transactional
+    public void onSupplierOrderDelivered(SupplierOrderDeliveredEvent event) {
+        if (event != null && event.getProductId() != null && event.getUnits() > 0) {
+            restock(event.getProductId(), event.getUnits());
+        }
     }
 }

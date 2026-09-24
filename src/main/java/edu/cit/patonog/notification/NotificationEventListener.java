@@ -3,6 +3,7 @@ package edu.cit.patonog.notification;
 import edu.cit.patonog.events.LowStockEvent;
 import edu.cit.patonog.events.OrderPlacedEvent;
 import edu.cit.patonog.events.OrderRejectedEvent;
+import edu.cit.patonog.events.SupplierOrderDeliveredEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
@@ -36,6 +37,13 @@ public class NotificationEventListener {
     public void onLowStock(LowStockEvent event) {
         String msg = String.format("Reorder needed: %s (%s) stock is down to %d units",
                 event.getProductName(), event.getProductId(), event.getRemainingStock());
+        saveNotification(msg);
+    }
+
+    @EventListener
+    public void onSupplierOrderDelivered(SupplierOrderDeliveredEvent event) {
+        String msg = String.format("Replenishment delivered: %d units of product %s (PO: %s)",
+                event.getUnits(), event.getProductId(), event.getPoNumber());
         saveNotification(msg);
     }
 
