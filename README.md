@@ -1,12 +1,10 @@
 # Modular Monolith Integration — Lab 3: LegacySupply Integration
 
 **Course/Lab:** Lab 3: LegacySupply Integration  
-**Stack:** Java Spring Boot (Java 17+) + React (Vite) + Supabase (PostgreSQL)  
-**Packages:** `edu.cit.patonog` (`.shop`, `.inventory`, `.notification`, `.events`, `.supplier`)
 
 ---
 
-## 📌 Overview & Architecture
+## Overview & Architecture
 
 Lab 3 extends our modular monolith by integrating an **Anti-Corruption Layer (ACL)** for external replenishment orders with **LegacySupply Distribution**. 
 
@@ -18,52 +16,9 @@ Key capabilities introduced in Lab 3:
 5. **Outage Recovery & Scheduled Poller:** `@Scheduled` jobs automatically retry `PENDING` orders during outages and poll open purchase orders until delivery.
 6. **Decoupled Delivery Restock:** Upon reaching status 40 (Delivered), the supplier scheduler fires `SupplierOrderDeliveredEvent`. The `Inventory` module listens via `@EventListener` and restocks the units without importing the supplier module.
 
-```
-+-----------------------------------------------------------------------------------+
-|                                  React Frontend                                   |
-|                              (http://localhost:5173)                              |
-+-----------------------------------------+-----------------------------------------+
-                                          |
-                                          | HTTP REST (CORS enabled)
-                                          v
-+-----------------------------------------------------------------------------------+
-|                      Spring Boot Monolith (In-Process JVM)                        |
-|                                                                                   |
-|   +--------------------------+           +------------------------------------+   |
-|   |   edu.cit.patonog.shop   | --------> |     edu.cit.patonog.inventory      |   |
-|   |      (Order Module)      | In-Process|         (Inventory Module)         |   |
-|   +------------+-------------+           +-----------------+------------------+   |
-|                |                                           ^                      |
-|                | LowStockEvent                             | EventListener        |
-|                v                                           | (Restock)            |
-|     +------------------------------------------------------+---------+            |
-|     | In-Process Domain Event Bus                                    |            |
-|     +--------------------+-------------------------------------------+            |
-|                          |                                 ^                      |
-|                          | LowStockEvent                   | DeliveredEvent       |
-|                          v                                 |                      |
-|         +---------------------------------+                |                      |
-|         |    edu.cit.patonog.supplier     | ---------------+                      |
-|         |   (Anti-Corruption Layer ACL)   |                                       |
-|         |                                 |                                       |
-|         |  SupplierGateway (Public)       |                                       |
-|         |  LegacySupplyClient (Private)   |                                       |
-|         |  SessionManager (Private)       |                                       |
-|         |  SupplierSkuTranslator (Private)|                                       |
-|         |  SupplierResilienceScheduler    |                                       |
-|         +----------------+----------------+                                       |
-+--------------------------|--------------------------------------------------------+
-                           | XML / HTTP (X-LS-Session, X-Request-Id, 3s Timeout)
-                           v
-            +------------------------------+
-            |    LegacySupply Partner API  |
-            |   (External Supplier System) |
-            +------------------------------+
-```
-
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 monolith/
@@ -124,7 +79,7 @@ monolith/
 
 ---
 
-## 🗄️ Supabase Database Schema
+## Supabase Database Schema
 
 Run [`supabase_schema.sql`](supabase_schema.sql) in your Supabase SQL Editor:
 
@@ -176,7 +131,7 @@ CREATE TABLE IF NOT EXISTS supplier_orders (
 
 ---
 
-## ⚙️ Environment Variables Setup
+## Environment Variables Setup
 
 Configure credentials in PowerShell before running:
 
@@ -189,7 +144,7 @@ $env:LS_API_KEY="LSK-BB9C86DC2BC5D210014E"
 
 ---
 
-## 🚀 Running the Application
+## Running the Application
 
 ### 1. Spring Boot Backend
 ```powershell
@@ -209,9 +164,3 @@ npm run dev
 Open `http://localhost:5173` in your browser.
 
 ---
-
-## 📑 Lab 3 Submission Artifacts
-
-- **Contract Discovery & SKU Mapping:** See [`INTEGRATION.md`](INTEGRATION.md) for product mappings, measured session lifespan, Qty/Uom worked examples, and error reference.
-- **Architectural Reflection:** See [`REFLECTION.md`](REFLECTION.md) for answers to the 3 custom reflection questions.
-- **Verification Page:** Live server-side results verified at [https://legacysupply.onrender.com/verify](https://legacysupply.onrender.com/verify).
