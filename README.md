@@ -1,12 +1,9 @@
 # Modular Monolith Integration — Lab 2: Extending the Modular Monolith
-
 **Course/Lab:** Lab 2: Extending the Modular Monolith  
-**Stack:** Java Spring Boot (v4 / Java 17+) + React (Vite) + Supabase (PostgreSQL)  
-**Package:** `edu.cit.patonog` (`.shop`, `.inventory`, `.notification`, `.events`)
 
 ---
 
-## 📌 Overview & Architecture
+## Overview & Architecture
 
 Lab 2 extends our modular monolith from Lab 1 by introducing:
 1. **Multi-Item Orders with Transactional Rollback:** All items are validated before reserving. If any item lacks stock, zero items are reserved (all-or-nothing).
@@ -15,53 +12,9 @@ Lab 2 extends our modular monolith from Lab 1 by introducing:
 4. **Low-Stock Auto-Reorder Alerts:** Automatically triggers a `LowStockEvent` whenever an item's stock drops to 5 or below after reservation.
 5. **Live Dashboard & Cart:** React frontend featuring a multi-item cart, live inventory dashboard with low-stock badges, order history with cancel buttons, and an event activity feed.
 
-```
-+-----------------------------------------------------------------------------------+
-|                                  React Frontend                                   |
-|                              (http://localhost:5173)                              |
-+-----------------------------------------+-----------------------------------------+
-                                          |
-                                          | HTTP REST (CORS enabled)
-                                          v
-+-----------------------------------------------------------------------------------+
-|                      Spring Boot Monolith (In-Process JVM)                        |
-|                                                                                   |
-|   +--------------------------+           +------------------------------------+   |
-|   |   edu.cit.patonog.shop   | --------> |     edu.cit.patonog.inventory      |   |
-|   |      (Order Module)      | In-Process|         (Inventory Module)         |   |
-|   |                          |           |                                    |   |
-|   |   OrderService           |           |   InventoryService (Public)        |   |
-|   |   OrderRepository        |           |   InventoryServiceImpl (Private)   |   |
-|   |   OrderController        |           |   InventoryRepository              |   |
-|   +------------+-------------+           +-----------------+------------------+   |
-|                |                                           |                      |
-|                | ApplicationEventPublisher                 | EventPublisher       |
-|                v                                           v                      |
-|      [OrderPlacedEvent / OrderRejectedEvent]        [LowStockEvent]               |
-|                \                                           /                      |
-|                 +-------------------+---------------------+                       |
-|                                     | In-Process Event Bus                        |
-|                                     v                                             |
-|                     +-------------------------------+                             |
-|                     | edu.cit.patonog.notification  |                             |
-|                     |     (Notification Module)     |                             |
-|                     |                               |                             |
-|                     |  NotificationEventListener    |                             |
-|                     |  NotificationRepository       |                             |
-|                     |  NotificationController       |                             |
-|                     +---------------+---------------+                             |
-+-------------------------------------|---------------------------------------------+
-                                      | Spring Data JPA (Shared Supabase Database)
-                                      v
-           +------------------------------------------------------+
-           |                 Supabase PostgreSQL                  |
-           |   inventory | orders | order_items | notifications   |
-           +------------------------------------------------------+
-```
-
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 monolith/
@@ -115,7 +68,7 @@ monolith/
 
 ---
 
-## 🗄️ Supabase Setup Guide
+## Supabase Setup Guide
 
 ### 1. Database Schema Execution
 Open the **SQL Editor** in your Supabase dashboard and run the entire script [`supabase_schema.sql`](supabase_schema.sql):
@@ -162,7 +115,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 ---
 
-## ⚙️ Environment Variables Setup
+## Environment Variables Setup
 
 Configure your Supabase database credentials in PowerShell before launching:
 
@@ -174,7 +127,7 @@ $env:SPRING_DATASOURCE_PASSWORD="<your-database-password>"
 
 ---
 
-## 🚀 Running the Application
+## Running the Application
 
 ### 1. Spring Boot Backend
 ```powershell
@@ -195,7 +148,7 @@ Open `http://localhost:5173` in your browser.
 
 ---
 
-## ⚡ Synchronous vs. Asynchronous Event Listeners (`@Async`)
+## Synchronous vs. Asynchronous Event Listeners (`@Async`)
 
 In our implementation, the `NotificationEventListener` runs **synchronously** (Spring's default `@EventListener`).
 
@@ -210,7 +163,7 @@ If `@Async` were added to `@EventListener`:
 
 ---
 
-## 📸 Network Tab Evidence (Lab 2 Scenarios)
+## Network Tab Evidence (Lab 2 Scenarios)
 
 ### Scenario 1: Multi-Item Order All Succeed (`CONFIRMED`)
 - **Action:** Add `P100` (qty 2) and `P200` (qty 1) to cart, click Submit Order.
@@ -242,7 +195,7 @@ If `@Async` were added to `@EventListener`:
 
 ---
 
-## 📝 Architectural Reflection (300–500 Words)
+## Architectural Reflection (300–500 Words)
 
 ### 1. Multi-Item Orders & Transactional Atomicity (In-Process vs. Network)
 
