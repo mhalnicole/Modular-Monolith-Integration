@@ -89,6 +89,22 @@ class SupplierGatewayImpl implements SupplierGateway {
         );
     }
 
+    @Override
+    public boolean hasOpenOrder(String productId) {
+        if (productId == null || productId.isBlank()) {
+            return false;
+        }
+        java.util.List<SupplierOrderStatus> openStatuses = java.util.List.of(
+                SupplierOrderStatus.PENDING,
+                SupplierOrderStatus.SUBMITTED,
+                SupplierOrderStatus.ACCEPTED,
+                SupplierOrderStatus.PICKING,
+                SupplierOrderStatus.SHIPPED
+        );
+        return orderRepository.findByStatusIn(openStatuses).stream()
+                .anyMatch(o -> productId.trim().equalsIgnoreCase(o.getProductId()));
+    }
+
     private SupplierOrderStatus mapStatusCode(int statusCode) {
         return switch (statusCode) {
             case 10 -> SupplierOrderStatus.ACCEPTED;

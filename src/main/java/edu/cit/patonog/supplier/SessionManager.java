@@ -22,6 +22,7 @@ class SessionManager {
     private final String clientId;
     private final String apiKey;
     private final HttpClient httpClient;
+    private final edu.cit.patonog.config.AppInstanceHolder appInstanceHolder;
 
     private String cachedToken;
 
@@ -29,9 +30,11 @@ class SessionManager {
             @Value("${legacy-supply.base-url:https://legacysupply.onrender.com/api/v1}") String baseUrl,
             @Value("${legacy-supply.client-id:23-0065-102}") String clientId,
             @Value("${LS_API_KEY:}") String apiKeyEnv,
-            @Value("${legacy-supply.api-key:}") String apiKeyProp) {
+            @Value("${legacy-supply.api-key:}") String apiKeyProp,
+            edu.cit.patonog.config.AppInstanceHolder appInstanceHolder) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.clientId = clientId;
+        this.appInstanceHolder = appInstanceHolder;
         String resolvedKey = (apiKeyEnv != null && !apiKeyEnv.isBlank()) ? apiKeyEnv : apiKeyProp;
         if (resolvedKey == null || resolvedKey.isBlank()) {
             resolvedKey = System.getenv("LS_API_KEY");
@@ -65,6 +68,7 @@ class SessionManager {
                     .uri(URI.create(baseUrl + "/auth/token"))
                     .timeout(Duration.ofSeconds(3))
                     .header("Content-Type", "application/xml")
+                    .header("X-Client-Instance", appInstanceHolder.getInstanceId())
                     .POST(HttpRequest.BodyPublishers.ofString(requestXml, StandardCharsets.UTF_8))
                     .build();
 

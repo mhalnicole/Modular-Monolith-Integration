@@ -22,12 +22,15 @@ class LegacySupplyClient {
     private final String baseUrl;
     private final SessionManager sessionManager;
     private final HttpClient httpClient;
+    private final edu.cit.patonog.config.AppInstanceHolder appInstanceHolder;
 
     LegacySupplyClient(
             @Value("${legacy-supply.base-url:https://legacysupply.onrender.com/api/v1}") String baseUrl,
-            SessionManager sessionManager) {
+            SessionManager sessionManager,
+            edu.cit.patonog.config.AppInstanceHolder appInstanceHolder) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.sessionManager = sessionManager;
+        this.appInstanceHolder = appInstanceHolder;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(3))
                 .build();
@@ -61,6 +64,7 @@ class LegacySupplyClient {
                         .timeout(Duration.ofSeconds(3))
                         .header("Content-Type", "application/xml")
                         .header("X-LS-Session", token)
+                        .header("X-Client-Instance", appInstanceHolder.getInstanceId())
                         .POST(HttpRequest.BodyPublishers.ofString(requestXml, StandardCharsets.UTF_8));
 
                 if (requestId != null && !requestId.isBlank()) {
@@ -138,6 +142,7 @@ class LegacySupplyClient {
                     .uri(URI.create(baseUrl + "/purchase-orders/" + poNumber))
                     .timeout(Duration.ofSeconds(3))
                     .header("X-LS-Session", token)
+                    .header("X-Client-Instance", appInstanceHolder.getInstanceId())
                     .GET()
                     .build();
 

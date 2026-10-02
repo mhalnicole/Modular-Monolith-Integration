@@ -50,8 +50,33 @@ CREATE TABLE IF NOT EXISTS supplier_orders (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS channel_cursor (
+    id INT PRIMARY KEY,
+    next_cursor BIGINT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS channel_processed_events (
+    event_id VARCHAR(100) PRIMARY KEY,
+    event_type VARCHAR(50) NOT NULL,
+    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS channel_orders (
+    tiangge_order_id VARCHAR(100) PRIMARY KEY,
+    shop_order_id VARCHAR(100),
+    decision VARCHAR(50) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    lines_json TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 SELECT * FROM inventory;
 SELECT * FROM orders;
 SELECT * FROM order_items;
 SELECT * FROM notifications;
 SELECT * FROM supplier_orders;
+SELECT * FROM channel_cursor;
+SELECT * FROM channel_processed_events;
+SELECT * FROM channel_orders;

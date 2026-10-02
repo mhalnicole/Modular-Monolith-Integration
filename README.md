@@ -1,20 +1,21 @@
-# Modular Monolith Integration — Lab 3: LegacySupply Integration
+# Modular Monolith Integration - Lab 4: Tiangge Marketplace Integration
 
-**Course/Lab:** Lab 3: LegacySupply Integration  
+**Course/Lab:** Lab 4: Tiangge Marketplace: Run Your Shop Unattended  
 
 ---
 
 ## Overview & Architecture
 
-Lab 3 extends our modular monolith by integrating an **Anti-Corruption Layer (ACL)** for external replenishment orders with **LegacySupply Distribution**. 
+Lab 4 extends our modular monolith by integrating with **Tiangge Marketplace**, enabling unattended shop operations. The application autonomously discovers incoming marketplace orders, evaluates real inventory availability, synchronizes stock changes via domain events, and resolves backorders when LegacySupply replenishments arrive.
 
-Key capabilities introduced in Lab 3:
-1. **Anti-Corruption Layer (`edu.cit.patonog.supplier`):** Translates internal domain terms and requests into LegacySupply's legacy XML format without leaking external quirks (SKUs, pack sizes, XML schemas, or status codes) into core `Order` or `Inventory` modules.
-2. **Encapsulation:** Only `SupplierGateway` and domain result types are public. All XML parsers, HTTP clients, session managers, and translators are strictly package-private.
-3. **Automated Session Management:** `SessionManager` handles automated sign-in via `POST /auth/token` with Client ID `23-0065-102` and `$env:LS_API_KEY`, caching tokens in memory and automatically refreshing them upon expiration (measured 120s lifetime).
-4. **Idempotency & Resilience:** All reorders generate and store a persistent `X-Request-Id` (UUID) and `BuyerRef` in `supplier_orders` before dispatch. Outbound calls timeout at 3 seconds and retry up to 3 times with exponential backoff.
-5. **Outage Recovery & Scheduled Poller:** `@Scheduled` jobs automatically retry `PENDING` orders during outages and poll open purchase orders until delivery.
-6. **Decoupled Delivery Restock:** Upon reaching status 40 (Delivered), the supplier scheduler fires `SupplierOrderDeliveredEvent`. The `Inventory` module listens via `@EventListener` and restocks the units without importing the supplier module.
+Key capabilities in Lab 4:
+1. **Marketplace Channel Module (`edu.cit.patonog.channel`):** Interfaces with Tiangge via JSON REST API while maintaining strict encapsulation. Only `MarketplaceGateway` and public domain types are exposed; all pollers, HTTP clients, and order processors are package-private.
+2. **Instance Lifecycle & Heartbeats:** The application generates a random instance UUID upon boot (`AppInstanceHolder`) and attaches `X-Client-Instance` to every request sent to Tiangge and LegacySupply. Heartbeats are dispatched every 30 seconds.
+3. **Automated Catalog Publication:** Publishes 3 listings mapping internal product IDs (`P100`, `P200`, `P300`) to LegacySupply SKUs (`ZAX-1614`, `ZAX-1252`, `ZAX-4488`) along with initial stock levels.
+4. **Event-Driven Stock Synchronization:** Inventory changes (customer orders, cancellations, supplier deliveries) trigger in-monolith `StockChangedEvent` instances. The channel module listens and pushes `PUT /stock` updates to Tiangge within seconds without using polling timers.
+5. **Feed Ingestion & Deduplication:** Polls Tiangge `/feed` every 2.5 seconds, storing the sequence cursor in `channel_cursor`. Every event is deduplicated via `channel_processed_events` in PostgreSQL so redelivered events and application restarts do not duplicate processing.
+6. **Order Decisions & Backorders:** Evaluates all line items against available inventory within 60 seconds. Fulfillable orders are confirmed via `OrderService.placeOrder` (`ACCEPTED`). If inventory is insufficient but a supplier replenishment order is active, the order is marked `BACKORDERED`.
+7. **Backorder Resolution & Customer Cancellations:** Resolves backorders to `ACCEPTED` upon receiving `SupplierOrderDeliveredEvent`. Customer cancellations in the feed cancel the internal order through `OrderService.cancelOrder`, restock inventory, confirm cancellation to Tiangge, and immediately sync new stock.
 
 ---
 
@@ -25,55 +26,76 @@ monolith/
 ├── src/
 │   ├── main/
 │   │   ├── java/edu/cit/patonog/
-│   │   │   ├── ShopApplication.java            # @SpringBootApplication & @EnableScheduling
+│   │   │   ├── ShopApplication.java
 │   │   │   ├── config/
-│   │   │   │   └── WebCorsConfig.java          # CORS configuration
-│   │   │   ├── events/                         # In-Monolith Domain Events
-│   │   │   │   ├── OrderPlacedEvent.java       # Customer order confirmed
-│   │   │   │   ├── OrderRejectedEvent.java     # Customer order rejected
-│   │   │   │   ├── LowStockEvent.java          # Stock <= 5 alert trigger
-│   │   │   │   └── SupplierOrderDeliveredEvent.java # Supplier shipment delivered
-│   │   │   ├── inventory/                      # Inventory Module
-│   │   │   │   ├── InventoryItem.java          # JPA entity for 'inventory' table
-│   │   │   │   ├── InventoryRepository.java    # Spring Data JPA repository
-│   │   │   │   ├── InventoryService.java       # Public interface
-│   │   │   │   └── InventoryServiceImpl.java   # Implementation (listens to delivery events)
-│   │   │   ├── shop/                           # Order / Shop Module
-│   │   │   │   ├── Order.java                  # JPA entity for 'orders' table
-│   │   │   │   ├── OrderItem.java              # JPA entity for 'order_items' table
-│   │   │   │   ├── OrderItemDto.java           # DTO for line item outcomes
-│   │   │   │   ├── OrderRepository.java        # Spring Data JPA repository
-│   │   │   │   ├── OrderRequest.java           # Multi-item request DTO
-│   │   │   │   ├── OrderResponse.java          # Response DTO
-│   │   │   │   ├── OrderService.java           # Multi-item validation & cancel
-│   │   │   │   └── OrderController.java        # REST endpoints
-│   │   │   ├── notification/                   # Decoupled Notification Module
-│   │   │   │   ├── Notification.java           # JPA entity for 'notifications' table
-│   │   │   │   ├── NotificationRepository.java # JPA repository
-│   │   │   │   ├── NotificationEventListener.java # @EventListener for activity feed
-│   │   │   │   └── NotificationController.java # Activity feed endpoint
-│   │   │   └── supplier/                       # Anti-Corruption Layer (ACL)
-│   │   │       ├── SupplierGateway.java        # PUBLIC gateway interface
-│   │   │       ├── SupplierGatewayImpl.java    # Package-private implementation
-│   │   │       ├── SupplierOrderStatus.java    # PUBLIC status enum
-│   │   │       ├── SupplierReorderResult.java  # PUBLIC result record
-│   │   │       ├── SupplierOrder.java          # JPA entity for 'supplier_orders'
-│   │   │       ├── SupplierOrderRepository.java# JPA repository
-│   │   │       ├── LegacySupplyClient.java     # Package-private XML/HTTP client
-│   │   │       ├── SessionManager.java         # Package-private session manager
-│   │   │       ├── SupplierSkuTranslator.java  # Package-private SKU & case math
-│   │   │       ├── SupplierResilienceScheduler.java # Package-private retry & poller
-│   │   │       └── AutoReorderEventListener.java # LowStock event listener
+│   │   │   │   ├── AppInstanceHolder.java
+│   │   │   │   └── WebCorsConfig.java
+│   │   │   ├── events/
+│   │   │   │   ├── LowStockEvent.java
+│   │   │   │   ├── OrderPlacedEvent.java
+│   │   │   │   ├── OrderRejectedEvent.java
+│   │   │   │   ├── StockChangedEvent.java
+│   │   │   │   └── SupplierOrderDeliveredEvent.java
+│   │   │   ├── inventory/
+│   │   │   │   ├── InventoryItem.java
+│   │   │   │   ├── InventoryRepository.java
+│   │   │   │   ├── InventoryService.java
+│   │   │   │   └── InventoryServiceImpl.java
+│   │   │   ├── shop/
+│   │   │   │   ├── Order.java
+│   │   │   │   ├── OrderItem.java
+│   │   │   │   ├── OrderItemDto.java
+│   │   │   │   ├── OrderRepository.java
+│   │   │   │   ├── OrderRequest.java
+│   │   │   │   ├── OrderResponse.java
+│   │   │   │   └── OrderService.java
+│   │   │   ├── notification/
+│   │   │   │   ├── Notification.java
+│   │   │   │   ├── NotificationRepository.java
+│   │   │   │   ├── NotificationEventListener.java
+│   │   │   │   └── NotificationController.java
+│   │   │   ├── supplier/
+│   │   │   │   ├── SupplierGateway.java
+│   │   │   │   ├── SupplierGatewayImpl.java
+│   │   │   │   ├── SupplierOrderStatus.java
+│   │   │   │   ├── SupplierReorderResult.java
+│   │   │   │   ├── SupplierOrder.java
+│   │   │   │   ├── SupplierOrderRepository.java
+│   │   │   │   ├── LegacySupplyClient.java
+│   │   │   │   ├── SessionManager.java
+│   │   │   │   ├── SupplierSkuTranslator.java
+│   │   │   │   ├── SupplierResilienceScheduler.java
+│   │   │   │   └── AutoReorderEventListener.java
+│   │   │   └── channel/
+│   │   │       ├── MarketplaceGateway.java
+│   │   │       ├── MarketplaceGatewayImpl.java
+│   │   │       ├── TianggeClient.java
+│   │   │       ├── TianggeDto.java
+│   │   │       ├── ChannelCursor.java
+│   │   │       ├── ChannelCursorRepository.java
+│   │   │       ├── ChannelProcessedEvent.java
+│   │   │       ├── ChannelProcessedEventRepository.java
+│   │   │       ├── ChannelOrder.java
+│   │   │       ├── ChannelOrderRepository.java
+│   │   │       ├── ChannelOrderProcessor.java
+│   │   │       ├── ChannelBackorderResolver.java
+│   │   │       ├── ChannelFeedPoller.java
+│   │   │       ├── ChannelHeartbeatScheduler.java
+│   │   │       ├── ChannelStartupRunner.java
+│   │   │       └── ChannelStockSyncListener.java
 │   │   └── resources/
-│   │       └── application.properties          # Environment-based configuration
+│   │       └── application.properties
 │   └── test/
 │       └── java/edu/cit/patonog/
-│           └── ShopApplicationTests.java       # Unit tests
-├── frontend/                                   # React (Vite) Frontend
-├── supabase_schema.sql                         # Complete SQL schema & seed script
-├── INTEGRATION.md                              # Lab 3 Contract discovery & SKU mapping
-├── REFLECTION.md                               # Lab 3 Reflection question answers
-├── pom.xml                                     # Maven dependencies
+│           ├── ChannelModuleTests.java
+│           ├── ShopApplicationTests.java
+│           └── channel/
+│               └── ChannelProcessorTests.java
+├── frontend/
+├── supabase_schema.sql
+├── INTEGRATION.md
+├── REFLECTION.md
+├── pom.xml
 └── README.md
 ```
 
@@ -84,14 +106,12 @@ monolith/
 Run [`supabase_schema.sql`](supabase_schema.sql) in your Supabase SQL Editor:
 
 ```sql
--- 1. Inventory Table
 CREATE TABLE IF NOT EXISTS inventory (
     product_id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     stock INT NOT NULL CHECK (stock >= 0)
 );
 
--- 2. Customer Orders Table
 CREATE TABLE IF NOT EXISTS orders (
     order_id VARCHAR(100) PRIMARY KEY,
     status VARCHAR(50) NOT NULL,
@@ -99,7 +119,6 @@ CREATE TABLE IF NOT EXISTS orders (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. Order Items Table
 CREATE TABLE IF NOT EXISTS order_items (
     id BIGSERIAL PRIMARY KEY,
     order_id VARCHAR(100) NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
@@ -107,14 +126,12 @@ CREATE TABLE IF NOT EXISTS order_items (
     quantity INT NOT NULL CHECK (quantity > 0)
 );
 
--- 4. Notifications Table
 CREATE TABLE IF NOT EXISTS notifications (
     notification_id VARCHAR(100) PRIMARY KEY,
     message VARCHAR(500) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 5. Supplier Orders Table (Lab 3)
 CREATE TABLE IF NOT EXISTS supplier_orders (
     id BIGSERIAL PRIMARY KEY,
     product_id VARCHAR(50) NOT NULL REFERENCES inventory(product_id),
@@ -124,6 +141,28 @@ CREATE TABLE IF NOT EXISTS supplier_orders (
     cases INT NOT NULL,
     units INT NOT NULL,
     status VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS channel_cursor (
+    id INT PRIMARY KEY,
+    next_cursor BIGINT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS channel_processed_events (
+    event_id VARCHAR(100) PRIMARY KEY,
+    event_type VARCHAR(50) NOT NULL,
+    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS channel_orders (
+    tiangge_order_id VARCHAR(100) PRIMARY KEY,
+    shop_order_id VARCHAR(100),
+    decision VARCHAR(50) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    lines_json TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -148,10 +187,7 @@ $env:LS_API_KEY="LSK-BB9C86DC2BC5D210014E"
 
 ### 1. Spring Boot Backend
 ```powershell
-# Run automated tests
 .\mvnw test
-
-# Start the server on port 8080
 .\mvnw spring-boot:run
 ```
 
@@ -162,5 +198,3 @@ npm install
 npm run dev
 ```
 Open `http://localhost:5173` in your browser.
-
----

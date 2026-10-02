@@ -56,6 +56,8 @@ class InventoryServiceImpl implements InventoryService {
         item.setStock(updatedStock);
         inventoryRepository.save(item);
 
+        eventPublisher.publishEvent(new edu.cit.patonog.events.StockChangedEvent(item.getProductId(), updatedStock));
+
         if (updatedStock <= lowStockThreshold) {
             eventPublisher.publishEvent(new LowStockEvent(item.getProductId(), item.getName(), updatedStock));
         }
@@ -73,8 +75,10 @@ class InventoryServiceImpl implements InventoryService {
         Optional<InventoryItem> optionalItem = inventoryRepository.findById(productId.trim());
         if (optionalItem.isPresent()) {
             InventoryItem item = optionalItem.get();
-            item.setStock(item.getStock() + quantity);
+            int updatedStock = item.getStock() + quantity;
+            item.setStock(updatedStock);
             inventoryRepository.save(item);
+            eventPublisher.publishEvent(new edu.cit.patonog.events.StockChangedEvent(item.getProductId(), updatedStock));
         }
     }
 
