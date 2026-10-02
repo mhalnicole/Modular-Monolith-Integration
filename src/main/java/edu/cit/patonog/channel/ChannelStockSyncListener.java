@@ -16,7 +16,7 @@ class ChannelStockSyncListener {
     @EventListener
     public void onStockChanged(StockChangedEvent event) {
         if (event != null && event.getProductId() != null) {
-            marketplaceGateway.syncStock(event.getProductId());
+            marketplaceGateway.syncStock(event.getProductId(), event.getRemainingStock());
         }
     }
 }

@@ -31,6 +31,14 @@ class MarketplaceGatewayImpl implements MarketplaceGateway {
     }
 
     @Override
+    public void syncStock(String productId, int available) {
+        if (productId == null || productId.isBlank() || available < 0) {
+            return;
+        }
+        tianggeClient.publishStock(List.of(new TianggeDto.StockPayload(productId.trim(), available)));
+    }
+
+    @Override
     public void syncAllStock() {
         List<InventoryItem> items = inventoryService.getAllItems();
         if (items != null && !items.isEmpty()) {

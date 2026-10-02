@@ -78,7 +78,6 @@ class ChannelProcessorTests {
 
         verify(orderService, times(1)).placeOrder(any(OrderRequest.class));
         verify(tianggeClient, times(1)).sendDecision(eq("TG-101"), eq("ACCEPTED"), eq("ORD-901"), any());
-        verify(marketplaceGateway, times(1)).syncStock("P100");
         verify(channelOrderRepository, times(1)).save(any(ChannelOrder.class));
     }
 

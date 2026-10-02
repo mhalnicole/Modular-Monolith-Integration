@@ -87,9 +87,6 @@ class ChannelOrderProcessor {
                 String shopOrderId = response.getOrderId();
                 tianggeClient.sendDecision(event.orderId(), "ACCEPTED", shopOrderId, "Order accepted");
                 channelOrderRepository.save(new ChannelOrder(event.orderId(), shopOrderId, "ACCEPTED", "ACCEPTED", linesJson));
-                for (TianggeDto.FeedLine line : event.lines()) {
-                    marketplaceGateway.syncStock(line.sellerSku());
-                }
             } else {
                 String shopOrderId = "REJ-" + event.orderId();
                 tianggeClient.sendDecision(event.orderId(), "REJECTED", shopOrderId, response.getReason());
