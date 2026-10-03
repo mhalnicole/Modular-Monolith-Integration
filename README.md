@@ -6,16 +6,13 @@
 
 ## Overview & Architecture
 
-Lab 4 extends our modular monolith by integrating with **Tiangge Marketplace**, enabling unattended shop operations. The application autonomously discovers incoming marketplace orders, evaluates real inventory availability, synchronizes stock changes via domain events, and resolves backorders when LegacySupply replenishments arrive.
+Lab 4 integrates our modular monolith with the Tiangge Marketplace for unattended operations. The application discovers incoming orders, evaluates real inventory, pushes stock updates via domain events, and fulfills backorders once LegacySupply deliveries arrive.
 
-Key capabilities in Lab 4:
-1. **Marketplace Channel Module (`edu.cit.patonog.channel`):** Interfaces with Tiangge via JSON REST API while maintaining strict encapsulation. Only `MarketplaceGateway` and public domain types are exposed; all pollers, HTTP clients, and order processors are package-private.
-2. **Instance Lifecycle & Heartbeats:** The application generates a random instance UUID upon boot (`AppInstanceHolder`) and attaches `X-Client-Instance` to every request sent to Tiangge and LegacySupply. Heartbeats are dispatched every 30 seconds.
-3. **Automated Catalog Publication:** Publishes 3 listings mapping internal product IDs (`P100`, `P200`, `P300`) to LegacySupply SKUs (`ZAX-1614`, `ZAX-1252`, `ZAX-4488`) along with initial stock levels.
-4. **Event-Driven Stock Synchronization:** Inventory changes (customer orders, cancellations, supplier deliveries) trigger in-monolith `StockChangedEvent` instances. The channel module listens and pushes `PUT /stock` updates to Tiangge within seconds without using polling timers.
-5. **Feed Ingestion & Deduplication:** Polls Tiangge `/feed` every 2.5 seconds, storing the sequence cursor in `channel_cursor`. Every event is deduplicated via `channel_processed_events` in PostgreSQL so redelivered events and application restarts do not duplicate processing.
-6. **Order Decisions & Backorders:** Evaluates all line items against available inventory within 60 seconds. Fulfillable orders are confirmed via `OrderService.placeOrder` (`ACCEPTED`). If inventory is insufficient but a supplier replenishment order is active, the order is marked `BACKORDERED`.
-7. **Backorder Resolution & Customer Cancellations:** Resolves backorders to `ACCEPTED` upon receiving `SupplierOrderDeliveredEvent`. Customer cancellations in the feed cancel the internal order through `OrderService.cancelOrder`, restock inventory, confirm cancellation to Tiangge, and immediately sync new stock.
+- **Channel Module (`edu.cit.patonog.channel`):** Encapsulated adapter exposing only `MarketplaceGateway` and domain models.
+- **Heartbeats & Go-Live:** Generates a runtime UUID (`X-Client-Instance`), publishes 3 catalog listings, and sends heartbeats every 30 seconds.
+- **Event-Driven Stock Sync:** Pushes live stock changes to Tiangge using domain events without polling timers.
+- **Feed Poller & Deduplication:** Reads orders and cancellations with persistent cursor tracking and deduplication in Supabase PostgreSQL.
+- **Backorder Handling:** Holds unfillable orders as `BACKORDERED` while supplier orders are in transit and resolves them upon delivery.
 
 ---
 
